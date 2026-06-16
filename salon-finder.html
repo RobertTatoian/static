@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Salon shortlist</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<style>
+  :root {
+    --bg: #f7f6f3;
+    --ink: #1c1917;
+    --muted: #78716c;
+    --faint: #a8a29e;
+    --line: #e7e5e4;
+    --pill: #f5f5f4;
+    --accent: #047857;
+    --accent-dk: #065f46;
+    --accent-bg: #ecfdf5;
+    --amber: #f59e0b;
+    --amber-line: #fbbf24;
+    --white: #fff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 32px 16px 48px; }
+  @media (min-width: 640px) { .wrap { padding: 48px 24px; } }
+
+  .eyebrow {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--accent); margin: 0;
+  }
+  h1 { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; margin: 8px 0 0; }
+  @media (min-width: 640px) { h1 { font-size: 36px; } }
+  .lede { font-size: 14px; line-height: 1.55; color: var(--muted); margin: 8px 0 0; }
+
+  .mapcard { margin-top: 24px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  #map { height: 320px; width: 100%; background: #e8e8e6; }
+  .legend {
+    display: flex; align-items: center; gap: 16px;
+    border-top: 1px solid var(--line); background: var(--white);
+    padding: 8px 12px; font-size: 12px; color: var(--muted);
+  }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+  .dot.green { background: var(--accent); }
+  .legend .hint { margin-left: auto; }
+
+  .controls {
+    position: sticky; top: 0; z-index: 500;
+    margin: 20px 0; padding: 12px;
+    border: 1px solid var(--line); border-radius: 12px;
+    background: rgba(247,246,243,0.92); backdrop-filter: blur(8px);
+  }
+  .searchbox { position: relative; }
+  .searchbox svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--faint); }
+  #search {
+    width: 100%; padding: 9px 12px 9px 34px;
+    border: 1px solid #d6d3d1; border-radius: 8px; background: var(--white);
+    font-size: 14px; outline: none;
+  }
+  #search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(4,120,87,0.15); }
+
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+  #town {
+    padding: 7px 10px; border: 1px solid #d6d3d1; border-radius: 8px;
+    background: var(--white); font-size: 14px; outline: none;
+  }
+  #town:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(4,120,87,0.15); }
+  .sortwrap { margin-left: auto; display: flex; gap: 4px; padding: 3px; border: 1px solid #d6d3d1; border-radius: 8px; background: var(--white); }
+  .sortbtn {
+    border: 0; background: transparent; cursor: pointer;
+    padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--muted);
+  }
+  .sortbtn:hover { background: #f5f5f4; }
+  .sortbtn.active { background: var(--accent); color: #fff; }
+
+  .count { font-size: 12px; color: var(--muted); margin: 0 0 12px; }
+
+  ul.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+  .card {
+    border: 1px solid var(--line); border-radius: 12px; background: var(--white); padding: 16px;
+    transition: box-shadow .15s, border-color .15s;
+  }
+  .card:hover { box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .card.sel { border-color: var(--amber-line); box-shadow: 0 0 0 2px rgba(251,191,36,0.5); }
+  .card .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .card h2 { font-size: 16px; font-weight: 600; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .addr { display: flex; align-items: center; gap: 4px; font-size: 14px; color: var(--muted); margin: 2px 0 0; }
+  .addr span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ratewrap { text-align: right; flex-shrink: 0; }
+  .rate {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--accent-bg); color: var(--accent-dk);
+    padding: 4px 8px; border-radius: 6px; font-size: 14px; font-weight: 600;
+  }
+  .nrev { font-size: 12px; color: var(--faint); margin: 4px 0 0; }
+  .tags { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+  .pill { background: var(--pill); color: var(--muted); border-radius: 999px; padding: 4px 10px; font-size: 12px; }
+  .reviews {
+    margin-left: auto; display: inline-flex; align-items: center; gap: 4px;
+    border: 1px solid var(--accent); color: var(--accent-dk); text-decoration: none;
+    padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
+  }
+  .reviews:hover { background: var(--accent-bg); }
+  .empty { border: 1px dashed #d6d3d1; border-radius: 12px; padding: 48px 16px; text-align: center; color: var(--muted); font-size: 14px; }
+  .leaflet-popup-content { font-size: 13px; margin: 10px 12px; }
+  .leaflet-popup-content a { color: var(--accent-dk); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Greater Hartford, Connecticut</p>
+    <h1>Salon shortlist</h1>
+    <p class="lede">Full-service salons with 40+ reviews. No chains or men's-only shops. "Focus" is inferred from reviews, so verify before booking.</p>
+  </header>
+
+  <div class="mapcard">
+    <div id="map"></div>
+    <div class="legend">
+      <span><span class="dot green"></span>Salons</span>
+      <span class="hint">Tap a pin to jump to it</span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="searchbox">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      <input id="search" type="text" placeholder="Search name, town, or focus (e.g. curly, balayage)" aria-label="Search salons" />
+    </div>
+    <div class="row">
+      <select id="town" aria-label="Filter by town"></select>
+      <div class="sortwrap" id="sortwrap">
+        <button class="sortbtn active" data-sort="rating">Top rated</button>
+        <button class="sortbtn" data-sort="reviews">Most reviewed</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="count" id="count"></p>
+  <ul class="list" id="list"></ul>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+  var SALONS = [
+    { name: "Hair Gallery at the Mill", town: "Tariffville", address: "2 Tunxis Rd #102", rating: 4.8, reviews: 95, focus: "", lat: 41.909069, lon: -72.7613143, id: "ChIJY700YAYB54kRT7il_8RtL0Y" },
+    { name: "One on One Hair Design", town: "Enfield", address: "1593 King St", rating: 5.0, reviews: 210, focus: "Color & cuts", lat: 41.951662, lon: -72.6008772, id: "ChIJSUyNBJ375okRfr1NdteW-SY" },
+    { name: "Looks by Lena", town: "West Hartford", address: "333 N Main St #2", rating: 4.9, reviews: 91, focus: "Color/highlights; brow threading", lat: 41.7840827, lon: -72.7479767, id: "ChIJV4YxnJ6r54kRZZk_H_YxqPY" },
+    { name: "Misfit Heart Salon", town: "Manchester", address: "143 Main St", rating: 5.0, reviews: 62, focus: "Vivid/creative color; inclusive", lat: 41.7886282, lon: -72.5239721, id: "ChIJA8JUJ0FX5okRFXsoe5zpVBs" },
+    { name: "Stylized Hair Studio", town: "Manchester", address: "200 W Center St C4", rating: 4.9, reviews: 51, focus: "Bridal & event styling", lat: 41.770296, lon: -72.5437741, id: "ChIJ3Sy4QM5Z5okRlqBJ0tF6mAA" },
+    { name: "VXN Salon", town: "West Hartford", address: "221 Park Rd", rating: 5.0, reviews: 102, focus: "Hair extensions; color", lat: 41.7572126, lon: -72.724444, id: "ChIJ4yZthhmt54kRWxHlIIX2yG0" },
+    { name: "tHAIRapy Beauty Bar", town: "Manchester", address: "312 Main St", rating: 5.0, reviews: 85, focus: "Balayage / color", lat: 41.7827558, lon: -72.5231712, id: "ChIJpQgg4EJX5okRid7L3b7fOXU" },
+    { name: "Bespoke Hair Artistry", town: "West Hartford", address: "61 Raymond Rd Ste 21", rating: 4.9, reviews: 180, focus: "Precision cuts; color/grey blending", lat: 41.760714, lon: -72.7395529, id: "ChIJfVb33Jyt54kRk_Jt9ttRpzc" },
+    { name: "Julia Styles Salon at Sola", town: "West Hartford", address: "61 Raymond Rd", rating: 5.0, reviews: 68, focus: "Color", lat: 41.760719, lon: -72.7395288, id: "ChIJF-2kFp-t54kRpHpp0Ol6vpc" },
+    { name: "Mane Loft Salon", town: "West Hartford", address: "977R Farmington Ave", rating: 4.8, reviews: 308, focus: "Color/highlights (blonde)", lat: 41.7605185, lon: -72.743665, id: "ChIJiWzyJRqt54kReOP95Xl__No" },
+    { name: "Salon 2112", town: "Simsbury", address: "9 Phelps Ln", rating: 5.0, reviews: 73, focus: "", lat: 41.8753316, lon: -72.8007599, id: "ChIJ59bP_EYB54kRINBk_BsIHPc" },
+    { name: "Rhenium Salon and Spa", town: "Simsbury", address: "690 Hopmeadow St", rating: 4.8, reviews: 98, focus: "Color & cuts (salon + spa)", lat: 41.87010, lon: -72.803371, id: "ChIJWykVmcYB54kRcDTPMmiFZLU" },
+    { name: "Deeply Rooted Salon", town: "West Hartford", address: "485 New Park Ave", rating: 4.9, reviews: 354, focus: "Color", lat: 41.7410233, lon: -72.718994, id: "ChIJyYghVSlS5okRP7pqEnc7V20" },
+    { name: "The BeaHive Salon", town: "Manchester", address: "295 E Center St", rating: 4.9, reviews: 46, focus: "Color & cuts", lat: 41.7763688, lon: -72.5102055, id: "ChIJD_tbXKFX5okRu04JsYwzgag" },
+    { name: "Hair Today Salon", town: "Glastonbury", address: "2844 Main St", rating: 4.9, reviews: 144, focus: "", lat: 41.720825, lon: -72.613976, id: "ChIJ_-HKsYBR5okRsXeO930zO4s" },
+    { name: "Avon Hair Company", town: "Avon", address: "9 Avonwood Rd", rating: 4.8, reviews: 71, focus: "Color/highlights (blonde)", lat: 41.799935, lon: -72.82, id: "ChIJg3GiiE6p54kRe1aB1lHaKrU" },
+    { name: "Studio Central", town: "Glastonbury", address: "241 Hebron Ave", rating: 5.0, reviews: 64, focus: "Full-service; bridal hair & makeup", lat: 41.7133903, lon: -72.6032346, id: "ChIJw5WhVYVR5okRnsrIrana-Ag" },
+    { name: "Whip Salon Avon", town: "Avon", address: "51 E Main St #18", rating: 4.8, reviews: 188, focus: "Curly hair; color", lat: 41.8075621, lon: -72.8269613, id: "ChIJu07jCkep54kRvOklVqUn4kk" },
+    { name: "STUDIO J. by Julia Laviero", town: "Avon", address: "45 W Main St", rating: 5.0, reviews: 44, focus: "Curly/textured hair; color", lat: 41.8098854, lon: -72.8340301, id: "ChIJLXyBfXLSD4gRIZdL5YflJ0E" },
+    { name: "Head Rush Salon", town: "Enfield", address: "74 Palomba Dr", rating: 4.8, reviews: 152, focus: "Non-toxic color; permanent makeup", lat: 41.9913274, lon: -72.5724169, id: "ChIJN-RgatTk5okRZkI9XOO2_-A" },
+    { name: "Jeannine's Hair Salon", town: "Enfield", address: "77 Hazard Ave L", rating: 4.9, reviews: 65, focus: "", lat: 41.9904831, lon: -72.5721693, id: "ChIJWxdWYNTk5okR21vVx3HQQJc" },
+    { name: "Salon 22", town: "Glastonbury", address: "10 Commerce St e", rating: 4.7, reviews: 45, focus: "", lat: 41.7089043, lon: -72.5911102, id: "ChIJx47B65FR5okR6yE4PGeP1kY" },
+    { name: "Mane Habitat", town: "Enfield", address: "662 Enfield St", rating: 4.9, reviews: 43, focus: "Color; curly hair", lat: 42.0054553, lon: -72.5929509, id: "ChIJbdiUw0Tl5okRh5e2nvsiYKw" },
+    { name: "A Salon", town: "Enfield", address: "549.5 Hazard Ave", rating: 4.7, reviews: 168, focus: "", lat: 41.9852485, lon: -72.5147933, id: "ChIJeWNmYPnv5okRVeHmwQQ0A0U" },
+    { name: "Icon Salon", town: "Avon", address: "427 W Avon Rd", rating: 4.6, reviews: 99, focus: "Bridal hair & makeup; cuts", lat: 41.788481, lon: -72.864227, id: "ChIJzS5MODuv54kRpAGsZoeaedU" }
+  ];
+
+  var SORTS = {
+    rating: function (a, b) { return b.rating - a.rating || b.reviews - a.reviews; },
+    reviews: function (a, b) { return b.reviews - a.reviews; }
+  };
+
+  var state = { query: "", town: "All towns", sort: "rating", selected: null };
+
+  function reviewUrl(id) { return "https://search.google.com/local/reviews?placeid=" + id; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  function getResults() {
+    var q = state.query.trim().toLowerCase();
+    return SALONS.filter(function (s) {
+      var matchesTown = state.town === "All towns" || s.town === state.town;
+      var matchesQuery = !q ||
+        s.name.toLowerCase().indexOf(q) > -1 ||
+        s.town.toLowerCase().indexOf(q) > -1 ||
+        s.focus.toLowerCase().indexOf(q) > -1;
+      return matchesTown && matchesQuery;
+    }).sort(SORTS[state.sort]);
+  }
+
+  // ---- Map ----
+  var map = L.map("map", { scrollWheelZoom: false }).setView([41.83, -72.69], 10);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }).addTo(map);
+
+  var salonLayer = L.layerGroup().addTo(map);
+
+  function renderMarkers(results) {
+    salonLayer.clearLayers();
+    results.forEach(function (s) {
+      var isSel = s.id === state.selected;
+      var m = L.circleMarker([s.lat, s.lon], {
+        radius: isSel ? 10 : 6,
+        color: "#fff",
+        weight: 1.5,
+        fillColor: isSel ? "#f59e0b" : "#047857",
+        fillOpacity: 1
+      });
+      m.bindTooltip(s.name + " \u2605 " + s.rating.toFixed(1));
+      m.bindPopup(
+        "<b>" + esc(s.name) + "</b><br>\u2605 " + s.rating.toFixed(1) + " \u00b7 " + s.reviews +
+        " reviews \u00b7 " + esc(s.town) +
+        '<br><a href="' + reviewUrl(s.id) + '" target="_blank" rel="noopener">View reviews</a>'
+      );
+      m.on("click", function () { select(s.id); });
+      salonLayer.addLayer(m);
+    });
+  }
+
+  // ---- List ----
+  function renderList(results) {
+    var list = document.getElementById("list");
+    document.getElementById("count").textContent = results.length + (results.length === 1 ? " salon" : " salons");
+    if (results.length === 0) {
+      list.innerHTML = '<div class="empty">No salons match that. Clear the search or pick a different town.</div>';
+      return;
+    }
+    list.innerHTML = results.map(function (s) {
+      var sel = s.id === state.selected ? " sel" : "";
+      var focus = s.focus ? '<span class="pill">' + esc(s.focus) + "</span>" : "";
+      return '' +
+        '<li class="card' + sel + '" id="card-' + s.id + '">' +
+          '<div class="top">' +
+            '<div style="min-width:0">' +
+              "<h2>" + esc(s.name) + "</h2>" +
+              '<p class="addr"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>' +
+              "<span>" + esc(s.address) + ", " + esc(s.town) + "</span></p>" +
+            "</div>" +
+            '<div class="ratewrap">' +
+              '<span class="rate">\u2605 ' + s.rating.toFixed(1) + "</span>" +
+              '<p class="nrev">' + s.reviews + " reviews</p>" +
+            "</div>" +
+          "</div>" +
+          '<div class="tags">' +
+            focus +
+            '<a class="reviews" href="' + reviewUrl(s.id) + '" target="_blank" rel="noopener">Reviews ' +
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>' +
+          "</div>" +
+        "</li>";
+    }).join("");
+  }
+
+  function render() {
+    var results = getResults();
+    renderMarkers(results);
+    renderList(results);
+  }
+
+  function select(id) {
+    state.selected = id;
+    render();
+    var node = document.getElementById("card-" + id);
+    if (node) node.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  // ---- Controls ----
+  (function initTowns() {
+    var towns = ["All towns"].concat(
+      SALONS.map(function (s) { return s.town; })
+        .filter(function (v, i, a) { return a.indexOf(v) === i; })
+        .sort()
+    );
+    document.getElementById("town").innerHTML = towns.map(function (t) {
+      return '<option value="' + esc(t) + '">' + esc(t) + "</option>";
+    }).join("");
+  })();
+
+  document.getElementById("search").addEventListener("input", function (e) {
+    state.query = e.target.value; render();
+  });
+  document.getElementById("town").addEventListener("change", function (e) {
+    state.town = e.target.value; render();
+  });
+  document.getElementById("sortwrap").addEventListener("click", function (e) {
+    var btn = e.target.closest(".sortbtn");
+    if (!btn) return;
+    state.sort = btn.getAttribute("data-sort");
+    Array.prototype.forEach.call(this.querySelectorAll(".sortbtn"), function (b) {
+      b.classList.toggle("active", b === btn);
+    });
+    render();
+  });
+
+  render();
+  setTimeout(function () { map.invalidateSize(); }, 200);
+</script>
+</body>
+</html>
